@@ -3,7 +3,7 @@
  */
 
 import http from "http";
-import WebSocket from "ws";
+import SocketIO from "socket.io";
 import express from "express";
 
 const app = express();
@@ -16,36 +16,19 @@ app.get("/*", (req, res) => res.redirect("/"));
 
 const handleListen = () => console.log(`Listening on http://localhost:3000`); // http & ws protocol이 같은 port 공유
 
-const server = http.createServer(app); // http 서버 생성
-const wss = new WebSocket.Server({ server }); // http 서버 위에 ws 서버 생성
+const httpServer = http.createServer(app); // http 서버 생성
+const wsServer = SocketIO(httpServer); // localhost:3000/socket.io/socket.io.js 라는 url을 줌
 
-const sockets = []; // fake DB를 통해서 메시지를 모든 브라우저에 전달 가능하도록
-
-wss.on("connection", (socket) => {
-  // 브라우저 별 event handler
-  // connection -> socket 발생
-  // socket == 연결된 브라우저
-  sockets.push(socket);
-  socket["nickname"] = "Anon";
-  console.log("Connected to Browser ^^");
-  socket.on("close", () => {
-    console.log("Disconnected from Browser ㅠㅠ");
+wsServer.on("connection", (socket) => {
+  socket.onAny((event) => {
+    // like middleware or spy
+    console.log(`Socket Event: ${event}`);
   });
-  socket.on("message", (msg) => {
-    const message = JSON.parse(msg);
-    switch (message.type) {
-      case "new_message":
-        sockets.forEach((aSocket) =>
-          aSocket.send(`${socket.nickname}: ${message.payload}`)
-        );
-        break;
-      case "nickname": // socket 안에 nickname 넣기
-        socket["nickname"] = message.payload;
-        break;
-    }
+  socket.on("enter_room", (roomName, done) => {
+    // socket.rooms의 첫번째 데이터 == socket.id (user와 server 간의 기본 private room)
+    socket.join(roomName); // socket.rooms에 roomName 추가
+    done(); // 백엔드가 코드 실행(X, 보안 문제) -> 프론트에서 코드 실행(O), argument 전달도 가능
   });
 });
 
-// socket: 브라우저와 서버 사이의 contact 라인 (연결된 사람의 정보)
-
-server.listen(3000, handleListen);
+httpServer.listen(3000, handleListen);
