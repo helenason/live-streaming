@@ -1,6 +1,9 @@
+/**
+ * SERVER
+ */
+
 import http from "http";
-import { Server } from "socket.io";
-import { instrument } from "@socket.io/admin-ui";
+import WebSocket from "ws";
 import express from "express";
 
 const app = express();
@@ -11,66 +14,17 @@ app.use("/public", express.static(__dirname + "/public"));
 app.get("/", (req, res) => res.render("home"));
 app.get("/*", (req, res) => res.redirect("/"));
 
-const httpServer = http.createServer(app);
-const wsServer = new Server(httpServer, {
-  cors: {
-    origin: ["https://admin.socket.io"],
-    credentials: true,
-  },
-});
-instrument(wsServer, {
-  auth: false,
-  mode: "development",
-});
+const handleListen = () => console.log(`Listening on http://localhost:3000`); // http & ws protocol이 같은 port 공유
 
-function publicRooms() {
-  // const sids = wsServer.sockets.adapter.sids;
-  // const rooms = wsServer.sockets.adapter.rooms;
-  const {
-    sockets: {
-      adapter: { sids, rooms },
-    },
-  } = wsServer;
-  const publicRooms = [];
-  rooms.forEach((_, key) => {
-    if (sids.get(key) === undefined) {
-      publicRooms.push(key);
-    }
-  });
-  return publicRooms;
+const server = http.createServer(app); // http 서버 생성
+const wss = new WebSocket.Server({ server }); // http 서버 위에 ws 서버 생성
+
+function handleConnection(socket) { // socket == 연결된 브라우저
+  console.log(socket);
 }
 
-function countRoom(roomName) {
-  return wsServer.sockets.adapter.rooms.get(roomName)?.size;
-}
+wss.on("connection", handleConnection); // "on" method == event handler
 
-wsServer.on("connection", (socket) => {
-  socket["nickname"] = "Anon";
-  socket.onAny((event) => {
-    console.log(wsServer.sockets.adapter);
-    console.log(`Socket Event: ${event}`);
-  });
-  socket.on("enter_room", (roomName, done) => {
-    socket.join(roomName);
-    done();
-    socket.to(roomName).emit("welcome", socket.nickname, countRoom(roomName));
-    wsServer.sockets.emit("room_change", publicRooms());
-  });
-  socket.on("disconnecting", () => {
-    socket.rooms.forEach((room) =>
-      socket.to(room).emit("bye", socket.nickname, countRoom(room) - 1)
-    );
-  });
-  socket.on("disconnect", () => {
-    wsServer.sockets.emit("room_change", publicRooms());
-  });
-  socket.on("new_message", (msg, room, done) => {
-    socket.to(room).emit("new_message", `${socket.nickname}: ${msg}`);
-    done();
-  });
-  socket.on("nickname", (nickname) => (socket["nickname"] = nickname));
-});
+// socket: 브라우저와 서버 사이의 contact 라인 (연결된 사람의 정보)
 
-const handleListen = () => console.log(`Listening on http://localhost:3000`);
-
-httpServer.listen(3000, handleListen);
+server.listen(3000, handleListen);
