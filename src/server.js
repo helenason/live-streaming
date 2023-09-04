@@ -19,18 +19,21 @@ const handleListen = () => console.log(`Listening on http://localhost:3000`); //
 const server = http.createServer(app); // http 서버 생성
 const wss = new WebSocket.Server({ server }); // http 서버 위에 ws 서버 생성
 
+const sockets = []; // fake DB를 통해서 메시지를 모든 브라우저에 전달 가능하도록
+
 wss.on("connection", (socket) => {
-  // "on" method == event handler
+  // 브라우저 별 event handler
   // connection -> socket 발생
   // socket == 연결된 브라우저
+  sockets.push(socket);
   console.log("Connected to Browser ^^");
   socket.on("close", () => {
     console.log("Disconnected from Browser ㅠㅠ");
   });
   socket.on("message", (message) => {
-    console.log(message);
+    console.log(message.toString());
+    sockets.forEach((aSocket) => aSocket.send(message.toString()));
   });
-  socket.send("Hi!");
 });
 
 // socket: 브라우저와 서버 사이의 contact 라인 (연결된 사람의 정보)
